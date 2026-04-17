@@ -1,0 +1,29 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Playfair+Display:wght@900&family=Syne:wght@800&display=swap');
+
+@theme {
+  --font-syne: "Syne", sans-serif;
+  --font-playfair: "Playfair Display", serif;
+  --font-inter: "Inter", sans-serif;
+
+  --color-pure-white: #FFFFFF;
+  --color-pure-black: #000000;
+  --color-fluorescent-red: #FF3131;
+}
+
+@layer base {
+  body {
+    @apply font-inter bg-pure-white text-pure-black antialiased overflow-x-hidden;
+  }
+
+  h1, h2, h3 {
+    @apply font-syne font-extrabold uppercase;
+  }
+}
+
+@layer utilities {
+  .vertical-text {
+    writing-mode: vertical-rl;
+  }
+}
+
