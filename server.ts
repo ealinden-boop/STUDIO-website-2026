@@ -7,6 +7,70 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const convertRTFToHTML = (rtfContent: string) => {
+  let stripped = rtfContent;
+  
+  // 1. Handle hex characters early
+  const hexMap: { [key: string]: string } = {
+    "a0": " ", "91": "'", "92": "'", "93": '"', "94": '"',
+    "95": "•", "96": "–", "97": "—", "85": "...", "e9": "é", "c9": "É", "e0": "à", "e8": "è", "f4": "ô",
+  };
+  stripped = stripped.replace(/\\'[0-9a-f]{2}/gi, (match) => {
+    const hex = match.substring(2).toLowerCase();
+    return hexMap[hex] || String.fromCharCode(parseInt(hex, 16));
+  });
+
+  // 2. Remove metadata groups
+  let prev;
+  do {
+    prev = stripped;
+    stripped = stripped.replace(/\{(\\\*|\\fonttbl|\\colortbl|\\stylesheet|\\info|\\expandedcolortbl|\\header|\\footer)[^{}]*\}/g, "");
+  } while (stripped !== prev);
+
+  // 3. Convert Formatting TO PROTECTED PLACEHOLDERS
+  stripped = stripped.replace(/\\i[1 ]|\\i(?![a-z0-9])/gi, "__EM_START__");
+  stripped = stripped.replace(/\\i0 ?/gi, "__EM_END__");
+  stripped = stripped.replace(/\\b[1 ]|\\b(?![a-z0-9])/gi, "__STRONG_START__");
+  stripped = stripped.replace(/\\b0 ?/gi, "__STRONG_END__");
+
+  // 4. Handle hyperlinks - Improved to preserve placeholders and CLOSE TAGS
+  stripped = stripped.replace(/\{\\field\{\\\*\\fldinst\{HYPERLINK "(.*?)"\}\}\{\\fldrslt ([\s\S]*?)\}\}/gi, (match, url, label) => {
+    // Only strip pure RTF tags, keep placeholders
+    let cleanLabel = label
+      .replace(/\\[a-z0-9*-]+ ?/gi, "")
+      .replace(/\{|\}/g, "")
+      .trim();
+    
+    // Safety check: if an opener exists but no closer within the label, append a closer
+    if (cleanLabel.includes("__EM_START__") && !cleanLabel.includes("__EM_END__")) {
+      cleanLabel += "__EM_END__";
+    }
+    if (cleanLabel.includes("__STRONG_START__") && !cleanLabel.includes("__STRONG_END__")) {
+      cleanLabel += "__STRONG_END__";
+    }
+    
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="cv-link hover:text-fluorescent-red transition-colors">${cleanLabel}</a>`;
+  });
+  
+  // 5. Replace RTF line breaks
+  stripped = stripped.replace(/\\par(?![a-z0-9])|\\line(?![a-z0-9])|\\page(?![a-z0-9])|\\\n|\\\r/gi, "__RTF_BR__");
+  
+  // 6. Cleanup remaining RTF artifacts
+  stripped = stripped.replace(/\\[a-z0-9*-]+ ?/gi, "");
+  stripped = stripped.replace(/\{|\}|\\/g, "");
+  
+  // 7. RESTORE Formatting
+  stripped = stripped.replace(/__EM_START__/g, "<em>")
+                     .replace(/__EM_END__/g, "</em>")
+                     .replace(/__STRONG_START__/g, "<strong>")
+                     .replace(/__STRONG_END__/g, "</strong>");
+
+  // 8. Custom CV link detection
+  stripped = stripped.replace(/\bCV\b/g, '<a href="#" onclick="window.navigateToView(\'cv\'); return false;" class="cv-link">CV</a>');
+  
+  return stripped;
+};
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -36,11 +100,49 @@ async function startServer() {
   app.use("/home-page-images", express.static(path.join(process.cwd(), "home page images")));
   
   // Serve selected works images from root directory
-  app.use("/selected-works", express.static(path.join(process.cwd(), "home page images", "selected works folder")));
+  app.use("/selected-works", express.static(path.join(process.cwd(), "selected works folder")));
+
+  // API route to get CV content
+  app.get("/api/cv", (req, res) => {
+    const cvPath = path.join(process.cwd(), "CV.rtf");
+    try {
+      if (!fs.existsSync(cvPath)) {
+        return res.json({ content: "" });
+      }
+      const rtfContent = fs.readFileSync(cvPath, "utf8");
+      const htmlContent = convertRTFToHTML(rtfContent)
+        .split("__RTF_BR__")
+        .map(line => line.trim())
+        .join("<br />");
+      res.json({ content: htmlContent });
+    } catch (error) {
+      console.error("Error reading CV:", error);
+      res.status(500).json({ error: "Failed to read CV" });
+    }
+  });
+
+  // API route to get Writing content
+  app.get("/api/writing", (req, res) => {
+    const writingPath = path.join(process.cwd(), "writing.rtf");
+    try {
+      if (!fs.existsSync(writingPath)) {
+        return res.json({ content: "" });
+      }
+      const rtfContent = fs.readFileSync(writingPath, "utf8");
+      const htmlContent = convertRTFToHTML(rtfContent)
+        .split("__RTF_BR__")
+        .map(line => line.trim())
+        .join("<br />");
+      res.json({ content: htmlContent });
+    } catch (error) {
+      console.error("Error reading Writing page:", error);
+      res.status(500).json({ error: "Failed to read Writing page" });
+    }
+  });
 
   // API route to list selected works with metadata from RTF
   app.get("/api/selected-works", (req, res) => {
-    const worksDir = path.join(process.cwd(), "home page images", "selected works folder");
+    const worksDir = path.join(process.cwd(), "selected works folder");
     try {
       if (!fs.existsSync(worksDir)) return res.json([]);
       const files = fs.readdirSync(worksDir);
@@ -56,43 +158,7 @@ async function startServer() {
 
         if (rtfFile) {
           const rtfContent = fs.readFileSync(path.join(worksDir, rtfFile), "utf8");
-          
-          // Robust RTF stripping
-          let stripped = rtfContent;
-          
-          // 1. Remove metadata groups (font tables, color tables, etc.)
-          let prev;
-          do {
-            prev = stripped;
-            stripped = stripped.replace(/\{(\\\*|\\fonttbl|\\colortbl|\\stylesheet|\\info|\\expandedcolortbl|\\header|\\footer)[^{}]*\}/g, "");
-          } while (stripped !== prev);
-          
-          // 2. Replace RTF line breaks with a temporary placeholder
-          stripped = stripped.replace(/\\par(?![a-z0-9])|\\line(?![a-z0-9])|\\page(?![a-z0-9])|\\\n|\\\r/gi, "__RTF_BR__");
-          
-          // 3. Convert RTF formatting to HTML tags
-          // Italics: \i or \i1 to start, \i0 to end
-          stripped = stripped.replace(/\\i[1 ]|\\i(?![a-z0-9])/gi, "<em>");
-          stripped = stripped.replace(/\\i0 ?/gi, "</em>");
-          // Bold: \b or \b1 to start, \b0 to end
-          stripped = stripped.replace(/\\b[1 ]|\\b(?![a-z0-9])/gi, "<strong>");
-          stripped = stripped.replace(/\\b0 ?/gi, "</strong>");
-          
-          // 4. Remove all literal newlines (RTF ignores these)
-          stripped = stripped.replace(/[\r\n]/g, "");
-          
-          // 5. Remove all other control words
-          stripped = stripped.replace(/\\[a-z0-9*-]+ ?/gi, "");
-          
-          // 6. Handle hex characters like \'a0 (non-breaking space)
-          stripped = stripped.replace(/\\'[0-9a-f]{2}/gi, (match) => {
-            const hex = match.substring(2);
-            if (hex === "a0") return " ";
-            return String.fromCharCode(parseInt(hex, 16));
-          });
-          
-          // 7. Remove remaining braces and backslashes
-          stripped = stripped.replace(/\{|\}|\\/g, "");
+          const stripped = convertRTFToHTML(rtfContent);
           
           // 8. Replace placeholder with actual newlines and clean up
           const textWithBreaks = stripped
@@ -103,7 +169,7 @@ async function startServer() {
           if (textWithBreaks.length > 0) {
             const firstLine = textWithBreaks[0];
             const parts = firstLine.split(",");
-            title = parts[0].trim();
+            title = parts[0].trim().replace(/<\/?strong>|<\/?em>/gi, "");
             year = parts[1] ? parts[1].trim() : "";
             
             if (textWithBreaks.length > 1) {

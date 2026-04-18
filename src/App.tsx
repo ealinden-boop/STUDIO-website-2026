@@ -21,6 +21,8 @@ export default function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [homeImages, setHomeImages] = useState<{id: number, image: string}[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [cvContent, setCvContent] = useState<string>("");
+  const [writingContent, setWritingContent] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Fetch home images from API
@@ -37,6 +39,26 @@ export default function App() {
       .then(res => res.json())
       .then(data => setProjects(data))
       .catch(err => console.error("Failed to fetch projects:", err));
+  }, []);
+
+  // Fetch CV from API
+  useEffect(() => {
+    fetch("/api/cv")
+      .then(res => res.json())
+      .then(data => {
+        if (data.content) setCvContent(data.content);
+      })
+      .catch(err => console.error("Failed to fetch CV:", err));
+  }, []);
+
+  // Fetch Writing from API
+  useEffect(() => {
+    fetch("/api/writing")
+      .then(res => res.json())
+      .then(data => {
+        if (data.content) setWritingContent(data.content);
+      })
+      .catch(err => console.error("Failed to fetch writing:", err));
   }, []);
 
   // Prevent scroll when menu is open
@@ -85,6 +107,16 @@ export default function App() {
     }
   };
 
+  // Expose navigation to window for RTF links
+  useEffect(() => {
+    (window as any).navigateToView = (view: View, id?: number) => {
+      handleLinkClick(view, id);
+    };
+    return () => {
+      delete (window as any).navigateToView;
+    };
+  }, [handleLinkClick]);
+
   const isHome = currentView === "home";
   const selectedProject = projects.find(p => p.id === selectedProjectId);
   const infiniteHomeImages = [...homeImages, ...homeImages, ...homeImages];
@@ -100,7 +132,7 @@ export default function App() {
               onClick={() => handleLinkClick("home")}
               whileHover={{ scale: 1.3, color: "#FF3131" }}
               transition={{ duration: 0.3, ease: "easeOut" }}
-              className="text-[clamp(1.5rem,8vw,8rem)] font-syne font-extrabold tracking-tighter leading-[0.8] cursor-pointer text-left whitespace-nowrap md:whitespace-nowrap text-pure-black bg-transparent border-none p-0 origin-top-left"
+              className="text-[clamp(1.5rem,8vw,8rem)] font-integral font-bold tracking-tight leading-[0.8] cursor-pointer text-left whitespace-nowrap md:whitespace-nowrap text-pure-black bg-transparent border-none p-0 origin-top-left"
             >
               LIZ LINDEN
             </motion.button>
@@ -112,7 +144,7 @@ export default function App() {
               onClick={() => setIsMenuOpen(true)}
               whileHover={{ scale: 1.3, color: "#FF3131" }}
               transition={{ duration: 0.3, ease: "easeOut" }}
-              className="text-[clamp(1.5rem,8vw,8rem)] font-syne font-extrabold tracking-tighter leading-[0.8] cursor-pointer text-right text-pure-black bg-transparent border-none p-0 origin-top-right"
+              className="text-[clamp(1.5rem,8vw,8rem)] font-integral font-bold tracking-tight leading-[0.8] cursor-pointer text-right text-pure-black bg-transparent border-none p-0 origin-top-right"
             >
               MENU
             </motion.button>
@@ -126,7 +158,7 @@ export default function App() {
                   onClick={() => handleLinkClick("works")}
                   whileHover={{ scale: 1.3, color: "#FF3131" }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="text-[clamp(1.5rem,8vw,8rem)] font-syne font-extrabold tracking-tighter leading-[0.8] cursor-pointer text-pure-black bg-transparent border-none p-0 origin-bottom-left"
+                  className="text-[clamp(1.5rem,8vw,8rem)] font-integral font-bold tracking-tight leading-[0.8] cursor-pointer text-pure-black bg-transparent border-none p-0 origin-bottom-left"
                 >
                   ART
                 </motion.button>
@@ -137,7 +169,7 @@ export default function App() {
                   onClick={() => handleLinkClick("writing")}
                   whileHover={{ scale: 1.3, color: "#FF3131" }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="text-[clamp(1.5rem,8vw,8rem)] font-syne font-extrabold tracking-tighter leading-[0.8] cursor-pointer text-pure-black bg-transparent border-none p-0 origin-bottom-right"
+                  className="text-[clamp(1.5rem,8vw,8rem)] font-integral font-bold tracking-tight leading-[0.8] cursor-pointer text-pure-black bg-transparent border-none p-0 origin-bottom-right"
                 >
                   WRITING
                 </motion.button>
@@ -182,7 +214,7 @@ export default function App() {
             exit={{ opacity: 0, y: -20 }}
             className="pt-[25vh] px-6 md:px-12 pb-24 max-w-7xl mx-auto"
           >
-            <h2 className="text-[10vw] md:text-[8vw] font-syne font-extrabold leading-[0.9] tracking-tighter mb-24 text-pure-black">
+            <h2 className="text-[10vw] md:text-[8vw] font-integral font-bold leading-[0.9] tracking-tight mb-24 text-pure-black">
               SELECTED WORKS
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
@@ -210,7 +242,7 @@ export default function App() {
                   referrerPolicy="no-referrer" 
                 />
                 <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-                  <h3 className="text-pure-white font-syne font-extrabold text-3xl md:text-5xl leading-[0.9] tracking-tighter uppercase">
+                  <h3 className="text-pure-white font-integral font-bold text-3xl md:text-5xl leading-[0.9] tracking-tight uppercase">
                     SCULPTURE<br/>2015-2024
                   </h3>
                 </div>
@@ -237,10 +269,10 @@ export default function App() {
                 />
               </div>
               <div className="max-w-3xl text-pure-black">
-                <h2 className="text-2xl md:text-3xl font-syne font-extrabold leading-tight mb-2">
+                <h2 className="text-2xl md:text-3xl font-integral font-bold leading-tight mb-2">
                   <span className="italic">{selectedProject.title}</span>, {selectedProject.year}
                 </h2>
-                <div className="font-inter text-base md:text-lg leading-snug opacity-80 space-y-1">
+                <div className="font-montserrat font-light text-base md:text-lg leading-snug opacity-80 space-y-1">
                   <p>{selectedProject.medium}</p>
                   {selectedProject.description && (
                     <p 
@@ -262,7 +294,7 @@ export default function App() {
             exit={{ opacity: 0, y: -20 }}
             className="pt-[25vh] px-6 md:px-12 pb-24 max-w-4xl mx-auto"
           >
-            <h2 className="text-[10vw] md:text-[8vw] font-syne font-extrabold leading-[0.9] tracking-tighter mb-24 text-pure-black">
+            <h2 className="text-[10vw] md:text-[8vw] font-integral font-bold leading-[0.9] tracking-tight mb-24 text-pure-black">
               SCULPTURE 2015-2024
             </h2>
             <div className="flex flex-col gap-6">
@@ -298,7 +330,7 @@ export default function App() {
                     }
                   }}
                 >
-                  <h3 className="text-2xl md:text-4xl font-syne font-extrabold hover:text-fluorescent-red transition-colors text-pure-black">
+                  <h3 className="text-2xl md:text-4xl font-integral font-bold hover:text-fluorescent-red transition-colors text-pure-black">
                     {item.includes("The Photographer") ? (
                       <>
                         <span className="italic">The Photographer</span>, 2019
@@ -319,19 +351,13 @@ export default function App() {
             exit={{ opacity: 0, y: -20 }}
             className="pt-[25vh] px-6 md:px-12 pb-24 max-w-4xl mx-auto"
           >
-            <h2 className="text-[10vw] md:text-[8vw] font-syne font-extrabold leading-[0.9] tracking-tighter mb-24 text-pure-black">
+            <h2 className="text-[10vw] md:text-[8vw] font-integral font-bold leading-[0.9] tracking-tight mb-24 text-pure-black">
               WRITING
             </h2>
-            <div className="flex flex-col gap-12 text-pure-black">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="border-b border-pure-black pb-8">
-                  <span className="font-playfair italic text-xl">202{i}</span>
-                  <h3 className="text-3xl md:text-5xl font-syne font-extrabold mt-2 hover:text-fluorescent-red cursor-pointer">
-                    Essays on Digital Decay and the Weight of Light
-                  </h3>
-                </div>
-              ))}
-            </div>
+            <div 
+              className="font-montserrat font-light text-xl md:text-2xl text-pure-black leading-[1.4] rtf-content"
+              dangerouslySetInnerHTML={{ __html: writingContent }}
+            />
           </motion.main>
         )}
 
@@ -343,21 +369,13 @@ export default function App() {
             exit={{ opacity: 0, y: -20 }}
             className="pt-[25vh] px-6 md:px-12 pb-24 max-w-4xl mx-auto"
           >
-            <h2 className="text-[10vw] md:text-[8vw] font-syne font-extrabold leading-[0.9] tracking-tighter mb-24 text-pure-black">
+            <h2 className="text-[10vw] md:text-[8vw] font-integral font-bold leading-[0.9] tracking-tight mb-24 text-pure-black">
               CV
             </h2>
-            <div className="space-y-12 font-inter text-xl md:text-2xl text-pure-black">
-              <section>
-                <h4 className="font-syne font-extrabold uppercase mb-4">Education</h4>
-                <p>MFA in Visual Arts, Yale University</p>
-                <p>BFA in Fine Arts, Rhode Island School of Design</p>
-              </section>
-              <section>
-                <h4 className="font-syne font-extrabold uppercase mb-4">Exhibitions</h4>
-                <p>2024 — The Weight of Light, Solo Exhibition, New York</p>
-                <p>2023 — Urban Echoes, Group Show, Berlin</p>
-              </section>
-            </div>
+            <div 
+              className="font-montserrat font-light text-base md:text-lg text-pure-black leading-[1.3] rtf-content"
+              dangerouslySetInnerHTML={{ __html: cvContent }}
+            />
           </motion.main>
         )}
 
@@ -369,12 +387,12 @@ export default function App() {
             exit={{ opacity: 0, y: -20 }}
             className="pt-[25vh] px-6 md:px-12 pb-24 flex flex-col items-center text-center"
           >
-            <h2 className="text-[12vw] md:text-[10vw] font-syne font-extrabold leading-[0.9] tracking-tighter mb-12 text-pure-black">
+            <h2 className="text-[12vw] md:text-[10vw] font-integral font-bold leading-[0.9] tracking-tight mb-12 text-pure-black">
               CONTACT
             </h2>
             <a 
               href="mailto:studio@lizlinden.com" 
-              className="font-syne font-extrabold text-3xl md:text-6xl border-b-8 border-pure-black pb-4 hover:text-fluorescent-red hover:border-fluorescent-red transition-all text-pure-black"
+              className="font-integral font-bold text-3xl md:text-6xl border-b-8 border-pure-black pb-4 hover:text-fluorescent-red hover:border-fluorescent-red transition-all text-pure-black"
             >
               studio@lizlinden.com
             </a>
@@ -395,13 +413,13 @@ export default function App() {
             <div className="flex justify-between items-start">
               <button
                 onClick={() => handleLinkClick("home")}
-                className="text-pure-white text-[10vw] font-syne font-extrabold tracking-tighter leading-[0.8] hover:text-fluorescent-red transition-colors text-left md:whitespace-nowrap"
+                className="text-pure-white text-[10vw] font-integral font-bold tracking-tight leading-[0.8] hover:text-fluorescent-red transition-colors text-left md:whitespace-nowrap"
               >
                 LIZ LINDEN
               </button>
               <button
                 onClick={() => setIsMenuOpen(false)}
-                className="text-pure-white font-syne font-extrabold text-[10vw] md:text-[10vw] tracking-tighter leading-[0.8] hover:text-fluorescent-red transition-colors cursor-pointer text-right"
+                className="text-pure-white font-integral font-bold text-[10vw] md:text-[10vw] tracking-tight leading-[0.8] hover:text-fluorescent-red transition-colors cursor-pointer text-right"
               >
                 X
               </button>
@@ -415,7 +433,7 @@ export default function App() {
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 + i * 0.1, duration: 0.5 }}
-                  className="text-pure-white font-syne font-extrabold text-[10vw] md:text-[8vw] leading-[0.8] tracking-tighter hover:text-fluorescent-red transition-all text-left"
+                  className="text-pure-white font-integral font-bold text-[10vw] md:text-[8vw] leading-[0.8] tracking-tight hover:text-fluorescent-red transition-all text-left"
                 >
                   {link.label}
                 </motion.button>
@@ -423,7 +441,7 @@ export default function App() {
             </div>
 
             <div className="flex justify-end items-end">
-              <span className="text-pure-white font-inter font-medium text-[10px] md:text-xs tracking-widest">
+              <span className="text-pure-white font-montserrat font-medium text-[10px] md:text-xs tracking-widest">
                 ©2026
               </span>
             </div>

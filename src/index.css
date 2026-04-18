@@ -1,8 +1,31 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Playfair+Display:wght@900&family=Syne:wght@800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Montserrat:wght@300;400&family=Playfair+Display:wght@900&family=Syne:wght@800&display=swap');
+
+@font-face {
+  font-family: 'Integral CF';
+  src: url('./fonts/Fontspring-DEMO-integralcf-bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Integral CF';
+  src: url('./fonts/Fontspring-DEMO-integralcf-extrabold.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Integral CF';
+  src: url('./fonts/Fontspring-DEMO-integralcf-heavy.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+}
 
 @theme {
   --font-syne: "Syne", sans-serif;
+  --font-integral: "Integral CF", sans-serif;
+  --font-montserrat: "Montserrat", sans-serif;
   --font-playfair: "Playfair Display", serif;
   --font-inter: "Inter", sans-serif;
 
@@ -13,17 +36,25 @@
 
 @layer base {
   body {
-    @apply font-inter bg-pure-white text-pure-black antialiased overflow-x-hidden;
+    @apply font-montserrat bg-pure-white text-pure-black antialiased overflow-x-hidden;
   }
 
   h1, h2, h3 {
-    @apply font-syne font-extrabold uppercase;
+    @apply font-integral font-bold uppercase tracking-tight;
   }
 }
 
 @layer utilities {
   .vertical-text {
     writing-mode: vertical-rl;
+  }
+
+  .cv-link {
+    @apply text-pure-black underline underline-offset-4 transition-colors;
+  }
+
+  .cv-link:hover {
+    @apply text-fluorescent-red;
   }
 }
 
