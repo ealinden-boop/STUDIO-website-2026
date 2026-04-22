@@ -8,67 +8,91 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const convertRTFToHTML = (rtfContent: string) => {
-  let stripped = rtfContent;
-  
-  // 1. Handle hex characters early
-  const hexMap: { [key: string]: string } = {
-    "a0": " ", "91": "'", "92": "'", "93": '"', "94": '"',
-    "95": "•", "96": "–", "97": "—", "85": "...", "e9": "é", "c9": "É", "e0": "à", "e8": "è", "f4": "ô",
-  };
-  stripped = stripped.replace(/\\'[0-9a-f]{2}/gi, (match) => {
-    const hex = match.substring(2).toLowerCase();
-    return hexMap[hex] || String.fromCharCode(parseInt(hex, 16));
-  });
+  let text = rtfContent;
 
-  // 2. Remove metadata groups
+  // 1. Remove metadata groups (font table, color table, etc.)
   let prev;
   do {
-    prev = stripped;
-    stripped = stripped.replace(/\{(\\\*|\\fonttbl|\\colortbl|\\stylesheet|\\info|\\expandedcolortbl|\\header|\\footer)[^{}]*\}/g, "");
-  } while (stripped !== prev);
+    prev = text;
+    text = text.replace(/\{(\\\*|\\fonttbl|\\colortbl|\\stylesheet|\\info|\\expandedcolortbl|\\header|\\footer)[^{}]*\}/g, "");
+  } while (text !== prev);
 
-  // 3. Convert Formatting TO PROTECTED PLACEHOLDERS
-  stripped = stripped.replace(/\\i[1 ]|\\i(?![a-z0-9])/gi, "__EM_START__");
-  stripped = stripped.replace(/\\i0 ?/gi, "__EM_END__");
-  stripped = stripped.replace(/\\b[1 ]|\\b(?![a-z0-9])/gi, "__STRONG_START__");
-  stripped = stripped.replace(/\\b0 ?/gi, "__STRONG_END__");
+  // 2. Handle escaped newlines (backslashes at end of line) BEFORE stripping physical newlines
+  text = text.replace(/\\\r?\n/g, "__RTF_BR__");
+  // 3. Normalize all physical whitespace to spaces (RTF standard)
+  text = text.replace(/[\r\n\t]+/g, " ");
 
-  // 4. Handle hyperlinks - Improved to preserve placeholders and CLOSE TAGS
-  stripped = stripped.replace(/\{\\field\{\\\*\\fldinst\{HYPERLINK "(.*?)"\}\}\{\\fldrslt ([\s\S]*?)\}\}/gi, (match, url, label) => {
-    // Only strip pure RTF tags, keep placeholders
+  // 4. Handle Unicode escapes: \uN? (consume the fallback char ?)
+  text = text.replace(/\\u(-?\d+)\??/g, (match, n) => {
+    return String.fromCharCode(parseInt(n, 10));
+  });
+
+  // 5. Handle Hex escapes (Windows-1252)
+  const cp1252: { [key: number]: string } = {
+    133: "...", 145: "'", 146: "'", 147: '"', 148: '"', 149: "•", 150: "-", 151: "-", 160: " ", 174: "(R)", 169: "(C)"
+  };
+  text = text.replace(/\\'([0-9a-f]{2})/gi, (match, hex) => {
+    const code = parseInt(hex, 16);
+    return cp1252[code] || String.fromCharCode(code);
+  });
+
+  // 6. Handle control symbols
+  text = text.replace(/\\~/g, " "); // Non-breaking space
+  text = text.replace(/\\_/g, "-"); // Non-breaking hyphen
+  text = text.replace(/\\-/g, "");  // Optional hyphen
+  text = text.replace(/\\par(?![a-z0-9])|\\line(?![a-z0-9])|\\page(?![a-z0-9])/gi, "__RTF_BR__");
+
+  // 7. Convert Formatting TO PROTECTED PLACEHOLDERS
+  // Capture \i, \i1 as start, \i0 as end. Robust against touching other tags.
+  text = text.replace(/\\i(?!0)[01]? ?/gi, "__EM_START__");
+  text = text.replace(/\\i0 ?/gi, "__EM_END__");
+  text = text.replace(/\\b(?!0)[01]? ?/gi, "__STRONG_START__");
+  text = text.replace(/\\b0 ?/gi, "__STRONG_END__");
+
+  // 8. Handle hyperlinks
+  text = text.replace(/\{\\field\{\\\*\\fldinst\{HYPERLINK "(.*?)"\}\}\{\\fldrslt ([\s\S]*?)\}\}/gi, (match, url, label) => {
     let cleanLabel = label
-      .replace(/\\[a-z0-9*-]+ ?/gi, "")
+      .replace(/\\[a-z]+(-?\d+)? ?/gi, "")
       .replace(/\{|\}/g, "")
       .trim();
     
-    // Safety check: if an opener exists but no closer within the label, append a closer
-    if (cleanLabel.includes("__EM_START__") && !cleanLabel.includes("__EM_END__")) {
-      cleanLabel += "__EM_END__";
-    }
-    if (cleanLabel.includes("__STRONG_START__") && !cleanLabel.includes("__STRONG_END__")) {
-      cleanLabel += "__STRONG_END__";
-    }
+    if (cleanLabel.includes("__EM_START__") && !cleanLabel.includes("__EM_END__")) cleanLabel += "__EM_END__";
+    if (cleanLabel.includes("__STRONG_START__") && !cleanLabel.includes("__STRONG_END__")) cleanLabel += "__STRONG_END__";
     
     return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="cv-link hover:text-fluorescent-red transition-colors">${cleanLabel}</a>`;
   });
   
-  // 5. Replace RTF line breaks
-  stripped = stripped.replace(/\\par(?![a-z0-9])|\\line(?![a-z0-9])|\\page(?![a-z0-9])|\\\n|\\\r/gi, "__RTF_BR__");
+  // 9. Strip ALL remaining RTF tags rigorously
+  // This version handles tags with numeric params (\f0), or no params (\i).
+  text = text.replace(/\\[a-z][a-z0-9*-]* ?/gi, "");
+  // Only strip backslashes that were escaping literal braces or other control chars
+  text = text.replace(/\\([\\{}])/g, "$1");
+  // Final cleanup of any orphaned backslashes or braces
+  text = text.replace(/[\\{}]/g, "");
   
-  // 6. Cleanup remaining RTF artifacts
-  stripped = stripped.replace(/\\[a-z0-9*-]+ ?/gi, "");
-  stripped = stripped.replace(/\{|\}|\\/g, "");
-  
-  // 7. RESTORE Formatting
-  stripped = stripped.replace(/__EM_START__/g, "<em>")
-                     .replace(/__EM_END__/g, "</em>")
-                     .replace(/__STRONG_START__/g, "<strong>")
-                     .replace(/__STRONG_END__/g, "</strong>");
+  // 10. Restore formatting and collapse whitespace
+  text = text.replace(/__EM_START__/g, "<em>")
+             .replace(/__EM_END__/g, "</em>")
+             .replace(/__STRONG_START__/g, "<strong>")
+             .replace(/__STRONG_END__/g, "</strong>");
 
-  // 8. Custom CV link detection
-  stripped = stripped.replace(/\bCV\b/g, '<a href="#" onclick="window.navigateToView(\'cv\'); return false;" class="cv-link">CV</a>');
+  // Ensure standard digits (just in case of weird unicode digit variants)
+  text = text.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+
+  // Collapse multiple spaces to single space, except around our custom line breaks
+  text = text.replace(/ +/g, " ");
   
-  return stripped;
+  // 11. Final Character Normalization
+  text = text.replace(/[\u2010-\u2015]/g, "-")
+             .replace(/[\u2018-\u201B]/g, "'")
+             .replace(/[\u201C-\u201F]/g, '"')
+             .replace(/\u00A0/g, " ")
+             .replace(/\u2026/g, "...");
+  
+  // 12. Custom navigation link
+  text = text.replace(/\bCV\b/g, '<a href="#" onclick="window.navigateToView(\'cv\'); return false;" class="cv-link">CV</a>');
+  
+  return text.trim();
 };
 
 async function startServer() {
@@ -147,12 +171,15 @@ async function startServer() {
       if (!fs.existsSync(worksDir)) return res.json([]);
       const files = fs.readdirSync(worksDir);
       const imageFiles = files.filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
+      // Sort files descending so newest years come first
+      imageFiles.sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' }));
       
       const projects = imageFiles.map((img, index) => {
         const baseName = path.parse(img).name;
-        const rtfFile = files.find(f => f.startsWith(baseName) && f.endsWith(".rtf"));
-        let title = baseName;
-        let year = "";
+        // Exact match for RTF file to avoid prefix collisions
+        const rtfFile = files.find(f => f === `${baseName}.rtf`);
+        let title = baseName.replace(/^\d{4}_/, "").replace(/_/g, " ");
+        let year = baseName.match(/^\d{4}/)?.[0] || "";
         let medium = "";
         let description = "";
 
@@ -160,34 +187,54 @@ async function startServer() {
           const rtfContent = fs.readFileSync(path.join(worksDir, rtfFile), "utf8");
           const stripped = convertRTFToHTML(rtfContent);
           
-          // 8. Replace placeholder with actual newlines and clean up
-          const textWithBreaks = stripped
+          // Split by our placeholder and clean up
+          const lines = stripped
             .split("__RTF_BR__")
             .map(line => line.trim())
             .filter(line => line.length > 0);
 
-          if (textWithBreaks.length > 0) {
-            const firstLine = textWithBreaks[0];
-            const parts = firstLine.split(",");
-            title = parts[0].trim().replace(/<\/?strong>|<\/?em>/gi, "");
-            year = parts[1] ? parts[1].trim() : "";
+          if (lines.length > 0) {
+            // The first line often contains "Title, Year" or just "Title"
+            // We use the whole first line as the title area, but we'll try to extract the year if it ends in , 20XX
+            const firstLine = lines[0].replace(/<[^>]*>/g, ""); // STRIP HTML from Title line
+            const yearMatch = firstLine.match(/,\s*(\d{4}(-\d{4}|-present)?)$/);
             
-            if (textWithBreaks.length > 1) {
-              medium = textWithBreaks[1];
+            if (yearMatch) {
+              title = firstLine.substring(0, yearMatch.index).trim();
+              year = yearMatch[1];
+            } else {
+              title = firstLine;
             }
-            if (textWithBreaks.length > 2) {
-              description = textWithBreaks.slice(2).join("\n");
+
+            if (lines.length > 1) {
+              medium = lines[1].replace(/<[^>]*>/g, ""); // STRIP HTML from Medium
+            }
+            if (lines.length > 2) {
+              // Join description lines. We strip internal physical breaks in step 1.5,
+              // so lines here are genuine RTF paragraphs (\par).
+              description = lines.slice(2).join("\n"); 
             }
           }
         }
 
+        // Final sanitize for Title to ensure ASCII-only symbols for the high-impact font
+        const safeTitle = title
+          .replace(/[\u2010-\u2015\u2043\u2212\u2013\u2014]/g, "-") // All dashes to hyphen
+          .replace(/[\u2044\u2215\u2041]/g, "/") // Fraction/Division slashes to standard slash
+          .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+          .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+          .replace(/\u00A0/g, " ")
+          .replace(/\u2026/g, "...");
+
         return {
           id: index + 1,
-          title,
+          title: safeTitle,
           year,
           medium,
           description,
-          image: `/selected-works/${img}`
+          image: `/selected-works/${img}`,
+          // Special case for long horizontal images that need custom tile cropping
+          objectPosition: img.includes("non_sequitur") ? "right" : "center"
         };
       });
       res.json(projects);

@@ -13,6 +13,49 @@ const MENU_LINKS = [
   { label: "CONTACT", id: "contact" },
 ];
 
+const SafeText = ({ text, fontClass = "" }: { text: string; fontClass?: string }) => {
+  if (!text) return null;
+  // We split text to separate letters, numbers, and symbols.
+  const parts = text.split(/([0-9/\-(),.<>?:;"'{}[\]!@#$%^&*+=|\\~`])/);
+  
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (!part) return null;
+        
+        if (/[0-9]/.test(part)) {
+          // If the char is '4' and we're using Integral CF, we use Archivo Black
+          // because the '4' is missing/watermarked in the Integral CF demo font.
+          if (part === "4" && (fontClass.includes("font-integral") || !fontClass)) {
+            return (
+              <span 
+                key={i} 
+                className="font-archivo tracking-tight opacity-100" 
+                style={{ 
+                  fontStyle: 'normal', 
+                  fontWeight: 900,
+                  WebkitTextStroke: '0.04em currentcolor' // Artificial thickening to match the extra-heavy Integral CF
+                }}
+              >
+                {part}
+              </span>
+            );
+          }
+          // Other numbers stay in Integral CF but forced upright to prevent "fake italic" glitches
+          return <span key={i} className={fontClass} style={{ fontStyle: 'normal' }}>{part}</span>;
+        }
+
+        if (/[/\-(),.<>?:;"'{}[\]!@#$%^&*+=|\\~`]/.test(part)) {
+          // Problematic symbols always get a fallback to avoid "weird character" boxes
+          return <span key={i} className="font-archivo font-bold tracking-normal opacity-95" style={{ fontStyle: 'inherit', fontWeight: 'inherit' }}>{part}</span>;
+        }
+
+        return <span key={i} className={fontClass}>{part}</span>;
+      })}
+    </>
+  );
+};
+
 type View = "home" | "works" | "writing" | "cv" | "contact" | "project-detail" | "grouped-list";
 
 export default function App() {
@@ -227,6 +270,7 @@ export default function App() {
                   <img 
                     src={p.image} 
                     className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" 
+                    style={{ objectPosition: p.objectPosition || 'center' }}
                     referrerPolicy="no-referrer" 
                   />
                 </div>
@@ -243,7 +287,7 @@ export default function App() {
                 />
                 <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
                   <h3 className="text-pure-white font-integral font-bold text-3xl md:text-5xl leading-[0.9] tracking-tight uppercase">
-                    SCULPTURE<br/>2015-2024
+                    SCULPTURE<br/><SafeText text="2015-2024" />
                   </h3>
                 </div>
               </div>
@@ -260,20 +304,20 @@ export default function App() {
             className="pt-[25vh] px-6 md:px-12 pb-24 max-w-7xl mx-auto"
           >
             <div className="flex flex-col gap-6">
-              <div className="w-full aspect-video overflow-hidden">
+              <div className="w-full flex justify-center">
                 <img 
                   src={selectedProject.image} 
                   alt={selectedProject.title} 
-                  className="w-full h-full object-cover"
+                  className="max-w-full h-auto max-h-[85vh] object-contain mx-auto"
                   referrerPolicy="no-referrer"
                 />
               </div>
               <div className="max-w-3xl text-pure-black">
                 <h2 className="text-2xl md:text-3xl font-integral font-bold leading-tight mb-2">
-                  <span className="italic">{selectedProject.title}</span>, {selectedProject.year}
+                  <span className="italic"><SafeText text={selectedProject.title} fontClass="font-integral" /></span>, <SafeText text={selectedProject.year} fontClass="font-integral" />
                 </h2>
                 <div className="font-montserrat font-light text-base md:text-lg leading-snug opacity-80 space-y-1">
-                  <p>{selectedProject.medium}</p>
+                  <p><SafeText text={selectedProject.medium} fontClass="font-montserrat" /></p>
                   {selectedProject.description && (
                     <p 
                       className="whitespace-pre-wrap mt-2"
@@ -295,7 +339,7 @@ export default function App() {
             className="pt-[25vh] px-6 md:px-12 pb-24 max-w-4xl mx-auto"
           >
             <h2 className="text-[10vw] md:text-[8vw] font-integral font-bold leading-[0.9] tracking-tight mb-24 text-pure-black">
-              SCULPTURE 2015-2024
+              SCULPTURE <SafeText text="2015-2024" />
             </h2>
             <div className="flex flex-col gap-6">
               {[
@@ -333,9 +377,9 @@ export default function App() {
                   <h3 className="text-2xl md:text-4xl font-integral font-bold hover:text-fluorescent-red transition-colors text-pure-black">
                     {item.includes("The Photographer") ? (
                       <>
-                        <span className="italic">The Photographer</span>, 2019
+                        <span className="italic"><SafeText text="The Photographer" /></span>, <SafeText text="2019" />
                       </>
-                    ) : item}
+                    ) : <SafeText text={item} />}
                   </h3>
                 </div>
               ))}
