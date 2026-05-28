@@ -164,17 +164,65 @@ async function startServer() {
     }
   });
 
+  // Helper function to find a matching RTF file for an image inside a folder
+  const findMatchingRTF = (imageFile: string, rtfFiles: string[]): string | undefined => {
+    const baseImg = path.parse(imageFile).name.toLowerCase();
+    
+    // 1. Exact match (case-insensitive)
+    let found = rtfFiles.find(rtf => path.parse(rtf).name.toLowerCase() === baseImg);
+    if (found) return found;
+
+    // 2. Clean name match (ignoring spaces, underscores, dashes, casing)
+    const cleanImg = baseImg.replace(/[^a-z0-9]/g, "");
+    found = rtfFiles.find(rtf => {
+      const cleanRtf = path.parse(rtf).name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return cleanRtf === cleanImg;
+    });
+    if (found) return found;
+
+    // 3. Match by prefix (e.g. "01_") and word similarity
+    const imgPrefix = baseImg.split("_")[0];
+    if (imgPrefix) {
+      const matches = rtfFiles.filter(rtf => path.parse(rtf).name.toLowerCase().startsWith(imgPrefix));
+      if (matches.length === 1) {
+        return matches[0];
+      } else if (matches.length > 1) {
+        const wordsImg = baseImg.split(/[_\s-]/);
+        let bestMatch = matches[0];
+        let maxOverlap = -1;
+        for (const m of matches) {
+          const mBase = path.parse(m).name.toLowerCase();
+          const wordsM = mBase.split(/[_\s-]/);
+          const overlap = wordsImg.filter(w => wordsM.includes(w)).length;
+          if (overlap > maxOverlap) {
+            maxOverlap = overlap;
+            bestMatch = m;
+          }
+        }
+        return bestMatch;
+      }
+    }
+
+    return undefined;
+  };
+
   // API route to list selected works with metadata from RTF
   app.get("/api/selected-works", (req, res) => {
     const worksDir = path.join(process.cwd(), "selected works folder");
     try {
       if (!fs.existsSync(worksDir)) return res.json([]);
       const files = fs.readdirSync(worksDir);
+      
+      // Get directories inside selected works folder (excluding system/hidden files)
+      const dirs = files.filter(f => !f.startsWith(".") && fs.statSync(path.join(worksDir, f)).isDirectory());
+      
       const imageFiles = files.filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
       // Sort files descending so newest years come first
       imageFiles.sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' }));
       
-      const projects = imageFiles.map((img, index) => {
+      let nextId = 1;
+      
+      const projects = imageFiles.map((img) => {
         const baseName = path.parse(img).name;
         // Exact match for RTF file to avoid prefix collisions
         const rtfFile = files.find(f => f === `${baseName}.rtf`);
@@ -226,15 +274,111 @@ async function startServer() {
           .replace(/\u00A0/g, " ")
           .replace(/\u2026/g, "...");
 
+        const currentProjectId = nextId++;
+
+        // Detect if this project matches a series folder (e.g. "2019_Maternity")
+        const matchingDir = dirs.find(d => {
+          const dLower = d.toLowerCase();
+          const baseNameLower = baseName.toLowerCase();
+          return baseNameLower.startsWith(dLower) || 
+                 baseNameLower.includes(dLower.split("_")[1] || "___") ||
+                 dLower.startsWith(baseNameLower.split("_").slice(0, 2).join("_"));
+        });
+
+        let isSeries = false;
+        let seriesFolder = "";
+        let seriesTitle = "";
+        let seriesWorks: any[] = [];
+
+        if (matchingDir) {
+          isSeries = true;
+          seriesFolder = matchingDir;
+          seriesTitle = matchingDir.replace(/^\d{4}_/, "").replace(/_/g, " ");
+
+          const seriesPath = path.join(worksDir, matchingDir);
+          const subFiles = fs.readdirSync(seriesPath);
+          const subImages = subFiles.filter(f => 
+            /\.(jpg|jpeg|png|webp)$/i.test(f) && 
+            path.parse(f).name.toLowerCase() !== matchingDir.toLowerCase()
+          );
+          
+          // Sort sub-images ascending so 01_, 02_ etc. come in exact order
+          subImages.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+          const subRtfs = subFiles.filter(f => f.toLowerCase().endsWith(".rtf"));
+
+          seriesWorks = subImages.map((subImg) => {
+            const subBaseName = path.parse(subImg).name;
+            const rtfMatch = findMatchingRTF(subImg, subRtfs);
+            
+            let subTitle = subBaseName.replace(/^\d+(_\d{4})?_/, "").replace(/_/g, " ");
+            let subYear = subBaseName.match(/\d{4}/)?.[0] || year;
+            let subMedium = "";
+            let subDesc = "";
+
+            if (rtfMatch) {
+              const rtfContent = fs.readFileSync(path.join(seriesPath, rtfMatch), "utf8");
+              const stripped = convertRTFToHTML(rtfContent);
+              
+              const lines = stripped
+                .split("__RTF_BR__")
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+
+              if (lines.length > 0) {
+                const firstLine = lines[0].replace(/<[^>]*>/g, "");
+                const yearMatch = firstLine.match(/,\s*(\d{4}(-\d{4}|-present)?)$/);
+                
+                if (yearMatch) {
+                  subTitle = firstLine.substring(0, yearMatch.index).trim();
+                  subYear = yearMatch[1];
+                } else {
+                  subTitle = firstLine;
+                }
+
+                if (lines.length > 1) {
+                  subMedium = lines[1].replace(/<[^>]*>/g, "");
+                }
+                if (lines.length > 2) {
+                  subDesc = lines.slice(2).join("\n");
+                }
+              }
+            }
+
+            const safeSubTitle = subTitle
+              .replace(/[\u2010-\u2015\u2043\u2212\u2013\u2014]/g, "-")
+              .replace(/[\u2044\u2215\u2041]/g, "/")
+              .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+              .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+              .replace(/\u00A0/g, " ")
+              .replace(/\u2026/g, "...");
+
+            return {
+              id: nextId++,
+              title: safeSubTitle,
+              year: subYear,
+              medium: subMedium,
+              description: subDesc,
+              image: `/selected-works/${matchingDir}/${subImg}`,
+              isSubWork: true,
+              parentSeriesId: currentProjectId
+            };
+          });
+        }
+
         return {
-          id: index + 1,
+          id: currentProjectId,
           title: safeTitle,
           year,
           medium,
           description,
           image: `/selected-works/${img}`,
           // Special case for long horizontal images that need custom tile cropping
-          objectPosition: (img.includes("non_sequitur") || img.includes("the_truth_about")) ? "right" : "center"
+          objectPosition: (img.includes("non_sequitur") || img.includes("the_truth_about")) ? "right" : "center",
+          isSeries,
+          seriesFolder,
+          seriesTitle,
+          seriesWorks
         };
       });
       res.json(projects);

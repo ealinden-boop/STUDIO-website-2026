@@ -18,7 +18,7 @@ const SafeText = ({ text, fontClass = "" }: { text: string; fontClass?: string }
   return <span className={fontClass}>{text}</span>;
 };
 
-type View = "home" | "works" | "writing" | "cv" | "contact" | "project-detail" | "grouped-list";
+type View = "home" | "works" | "writing" | "cv" | "contact" | "project-detail" | "grouped-list" | "series-detail";
 
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -123,7 +123,21 @@ export default function App() {
   }, [handleLinkClick]);
 
   const isHome = currentView === "home";
-  const selectedProject = projects.find(p => p.id === selectedProjectId);
+  
+  // Find project in root projects or inside any series' works list
+  let selectedProject = projects.find(p => p.id === selectedProjectId);
+  if (!selectedProject) {
+    for (const p of projects) {
+      if (p.isSeries && p.seriesWorks) {
+        const foundSub = p.seriesWorks.find((sw: any) => sw.id === selectedProjectId);
+        if (foundSub) {
+          selectedProject = foundSub;
+          break;
+        }
+      }
+    }
+  }
+  
   const infiniteHomeImages = [...homeImages, ...homeImages, ...homeImages];
 
   return (
@@ -227,7 +241,7 @@ export default function App() {
                 <div 
                   key={p.id} 
                   className="relative aspect-[4/5] bg-pure-black overflow-hidden cursor-pointer group"
-                  onClick={() => handleLinkClick("project-detail", p.id)}
+                  onClick={() => handleLinkClick(p.isSeries ? "series-detail" : "project-detail", p.id)}
                 >
                   <img 
                     src={p.image} 
@@ -265,6 +279,22 @@ export default function App() {
             className="pt-[25vh] px-6 md:px-12 pb-24 max-w-7xl mx-auto"
           >
             <div className="flex flex-col gap-6">
+              {/* Back Button */}
+              <div className="mb-4">
+                <button 
+                  onClick={() => {
+                    if (selectedProject.isSubWork && selectedProject.parentSeriesId) {
+                      handleLinkClick("series-detail", selectedProject.parentSeriesId);
+                    } else {
+                      handleLinkClick("works");
+                    }
+                  }}
+                  className="font-integral font-bold text-xs tracking-widest text-pure-black/50 hover:text-fluorescent-red transition-colors uppercase flex items-center gap-1 cursor-pointer bg-transparent border-none p-0"
+                >
+                  ← {selectedProject.isSubWork ? "BACK TO SERIES" : "BACK TO SELECTED WORKS"}
+                </button>
+              </div>
+
               <div className="w-full flex justify-center">
                 <img 
                   src={selectedProject.image} 
@@ -287,6 +317,70 @@ export default function App() {
                   )}
                 </div>
               </div>
+            </div>
+          </motion.main>
+        )}
+
+        {currentView === "series-detail" && selectedProject && (
+          <motion.main
+            key={`series-${selectedProject.id}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="pt-[25vh] px-6 md:px-12 pb-24 max-w-5xl mx-auto"
+          >
+            {/* Back Button */}
+            <div className="mb-12">
+              <button 
+                onClick={() => handleLinkClick("works")}
+                className="font-integral font-bold text-xs tracking-widest text-pure-black/50 hover:text-fluorescent-red transition-colors uppercase flex items-center gap-1 cursor-pointer bg-transparent border-none p-0"
+              >
+                ← BACK TO SELECTED WORKS
+              </button>
+            </div>
+
+            {/* Series Title */}
+            <div className="mb-16">
+              <h2 className="text-[10vw] md:text-[8vw] font-integral font-bold leading-[0.9] tracking-tight text-pure-black uppercase">
+                <SafeText text={selectedProject.seriesTitle || selectedProject.title} />
+              </h2>
+            </div>
+
+            {/* Thumbnail List */}
+            <div className="flex flex-col gap-8">
+              {selectedProject.seriesWorks?.map((subWork: any) => (
+                <div 
+                  key={subWork.id}
+                  onClick={() => handleLinkClick("project-detail", subWork.id)}
+                  className="flex flex-col md:flex-row gap-6 md:items-center pb-8 border-b border-pure-black/10 group cursor-pointer"
+                >
+                  {/* Thumbnail Image Container */}
+                  <div className="w-[160px] aspect-[4/5] bg-pure-black overflow-hidden flex-shrink-0 transition-transform duration-500 group-hover:scale-[1.03]">
+                    <img 
+                      src={subWork.image} 
+                      alt={subWork.title}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+
+                  {/* Metadata Text */}
+                  <div className="flex-grow flex flex-col pt-2 md:pt-0">
+                    <h3 className="text-xl md:text-3xl font-integral font-bold text-pure-black group-hover:text-fluorescent-red transition-colors uppercase leading-none mb-2">
+                      <span className="italic"><SafeText text={subWork.title} /></span>, <SafeText text={subWork.year} />
+                    </h3>
+                    <p className="font-montserrat font-light text-sm md:text-base text-pure-black/70 leading-relaxed mb-1">
+                      <SafeText text={subWork.medium} />
+                    </p>
+                    {subWork.description && (
+                      <p 
+                        className="font-montserrat font-light text-xs md:text-sm text-pure-black/50 leading-relaxed italic"
+                        dangerouslySetInnerHTML={{ __html: subWork.description }}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </motion.main>
         )}
@@ -321,6 +415,7 @@ export default function App() {
                   onClick={() => {
                     if (item.toLowerCase().includes("the photographer")) {
                       // Find project by title or filename
+                      let foundProj: any = null;
                       const p = projects.find(proj => {
                         const cleanTitle = proj.title.toLowerCase().replace(/[^a-z0-9]/g, "");
                         const targetTitle = "thephotographer";
@@ -330,7 +425,19 @@ export default function App() {
                       });
                       
                       if (p) {
-                        handleLinkClick("project-detail", p.id);
+                        if (p.isSeries && p.seriesWorks) {
+                          const sub = p.seriesWorks.find((sw: any) => 
+                            sw.title.toLowerCase().includes("the photographer") || 
+                            sw.image.toLowerCase().includes("the_photographer")
+                          );
+                          foundProj = sub || p;
+                        } else {
+                          foundProj = p;
+                        }
+                      }
+                      
+                      if (foundProj) {
+                        handleLinkClick("project-detail", foundProj.id);
                       }
                     }
                   }}
