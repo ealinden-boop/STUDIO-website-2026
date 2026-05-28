@@ -1,5 +1,9 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500&family=Montserrat:wght@300;400&family=Playfair+Display:wght@900&family=Syne:wght@800&display=swap');
+@import "tailwindcss";
+
+html, :root {
+  --font-display-active: "Archivo Black", sans-serif;
+}
 
 @font-face {
   font-family: 'Integral CF';
@@ -25,7 +29,7 @@
 @theme {
   --font-syne: "Syne", sans-serif;
   --font-archivo: "Archivo Black", sans-serif;
-  --font-integral: "Integral CF", var(--font-archivo), sans-serif;
+  --font-integral: "Archivo Black", sans-serif;
   --font-montserrat: "Montserrat", sans-serif;
   --font-playfair: "Playfair Display", serif;
   --font-inter: "Inter", sans-serif;
@@ -58,4 +62,9 @@
     @apply text-fluorescent-red;
   }
 }
+
+html, :root {
+  --font-integral: "Archivo Black", sans-serif;
+}
+
 

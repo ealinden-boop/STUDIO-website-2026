@@ -234,7 +234,7 @@ async function startServer() {
           description,
           image: `/selected-works/${img}`,
           // Special case for long horizontal images that need custom tile cropping
-          objectPosition: img.includes("non_sequitur") ? "right" : "center"
+          objectPosition: (img.includes("non_sequitur") || img.includes("the_truth_about")) ? "right" : "center"
         };
       });
       res.json(projects);

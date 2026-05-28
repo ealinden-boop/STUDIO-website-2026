@@ -15,45 +15,7 @@ const MENU_LINKS = [
 
 const SafeText = ({ text, fontClass = "" }: { text: string; fontClass?: string }) => {
   if (!text) return null;
-  // We split text to separate letters, numbers, and symbols.
-  const parts = text.split(/([0-9/\-(),.<>?:;"'{}[\]!@#$%^&*+=|\\~`])/);
-  
-  return (
-    <>
-      {parts.map((part, i) => {
-        if (!part) return null;
-        
-        if (/[0-9]/.test(part)) {
-          // If the char is '4' and we're using Integral CF, we use Archivo Black
-          // because the '4' is missing/watermarked in the Integral CF demo font.
-          if (part === "4" && (fontClass.includes("font-integral") || !fontClass)) {
-            return (
-              <span 
-                key={i} 
-                className="font-archivo tracking-tight opacity-100" 
-                style={{ 
-                  fontStyle: 'normal', 
-                  fontWeight: 900,
-                  WebkitTextStroke: '0.04em currentcolor' // Artificial thickening to match the extra-heavy Integral CF
-                }}
-              >
-                {part}
-              </span>
-            );
-          }
-          // Other numbers stay in Integral CF but forced upright to prevent "fake italic" glitches
-          return <span key={i} className={fontClass} style={{ fontStyle: 'normal' }}>{part}</span>;
-        }
-
-        if (/[/\-(),.<>?:;"'{}[\]!@#$%^&*+=|\\~`]/.test(part)) {
-          // Problematic symbols always get a fallback to avoid "weird character" boxes
-          return <span key={i} className="font-archivo font-bold tracking-normal opacity-95" style={{ fontStyle: 'inherit', fontWeight: 'inherit' }}>{part}</span>;
-        }
-
-        return <span key={i} className={fontClass}>{part}</span>;
-      })}
-    </>
-  );
+  return <span className={fontClass}>{text}</span>;
 };
 
 type View = "home" | "works" | "writing" | "cv" | "contact" | "project-detail" | "grouped-list";
@@ -277,17 +239,16 @@ export default function App() {
               ))}
               {/* Archive Tile */}
               <div 
-                className="relative aspect-[4/5] bg-pure-black overflow-hidden cursor-pointer group flex items-center justify-center"
-                onClick={() => handleLinkClick("grouped-list")}
+                className="relative aspect-[4/5] bg-pure-black overflow-hidden flex items-center justify-center select-none"
               >
                 <img 
                   src="https://picsum.photos/seed/archive/1920/1080" 
-                  className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110 opacity-40" 
+                  className="w-full h-full object-cover opacity-20 pointer-events-none" 
                   referrerPolicy="no-referrer" 
                 />
                 <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
-                  <h3 className="text-pure-white font-integral font-bold text-3xl md:text-5xl leading-[0.9] tracking-tight uppercase">
-                    SCULPTURE<br/><SafeText text="2015-2024" />
+                  <h3 className="text-pure-white/80 font-integral font-bold text-3xl md:text-5xl leading-[0.9] tracking-tight uppercase">
+                    OTHER WORKS<br/>ADDED SOON...
                   </h3>
                 </div>
               </div>
@@ -443,6 +404,7 @@ export default function App() {
           </motion.main>
         )}
       </AnimatePresence>
+
 
       {/* Full-Screen Menu Overlay */}
       <AnimatePresence>
