@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/ealindenssp/public_html
+    - /bin/rsync -rav --exclude '.git' --exclude '.cpanel.yml' --exclude 'node_modules' $cpanel_dir/ $DEPLOYPATH
