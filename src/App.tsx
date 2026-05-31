@@ -32,7 +32,7 @@ export default function App() {
 
   // Fetch home images from API
   useEffect(() => {
-    fetch("/api/home-images")
+    fetch("/api/home-images.json")
       .then(res => res.json())
       .then(data => setHomeImages(data))
       .catch(err => console.error("Failed to fetch home images:", err));
@@ -40,7 +40,7 @@ export default function App() {
 
   // Fetch projects from API
   useEffect(() => {
-    fetch("/api/selected-works")
+    fetch("/api/selected-works.json")
       .then(res => res.json())
       .then(data => setProjects(data))
       .catch(err => console.error("Failed to fetch projects:", err));
@@ -48,7 +48,7 @@ export default function App() {
 
   // Fetch CV from API
   useEffect(() => {
-    fetch("/api/cv")
+    fetch("/api/cv.json")
       .then(res => res.json())
       .then(data => {
         if (data.content) setCvContent(data.content);
@@ -58,7 +58,7 @@ export default function App() {
 
   // Fetch Writing from API
   useEffect(() => {
-    fetch("/api/writing")
+    fetch("/api/writing.json")
       .then(res => res.json())
       .then(data => {
         if (data.content) setWritingContent(data.content);
